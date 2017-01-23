@@ -18,6 +18,15 @@ catkin_package(
   CATKIN_DEPENDS gazebo_ros_control hector_quadrotor_interface
 )
 
+option(USE_MAV_MSGS "Publish actuator commands as mav_msgs/Actuators" ON)
+if(USE_MAV_MSGS)
+  find_package(mav_msgs REQUIRED)
+  find_package(Eigen3 REQUIRED)
+  add_definitions(-DUSE_MAV_MSGS)
+  include_directories(${mav_msgs_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+  list(APPEND catkin_LIBRARIES ${mav_msgs_LIBRARIES})
+endif()
+
 add_library(hector_quadrotor_controller_gazebo
   src/quadrotor_hardware_gazebo.cpp
 )

@@ -41,6 +41,11 @@
 #include <hector_uav_msgs/MotorStatus.h>
 #include <hector_uav_msgs/EnableMotors.h>
 
+#ifdef USE_MAV_MSGS
+#include <mav_msgs/Actuators.h>
+#include <Eigen/Core>
+#endif
+
 namespace hector_quadrotor_controller_gazebo
 {
 
@@ -96,6 +101,12 @@ private:
   ros::Publisher wrench_command_publisher_;
   ros::Publisher motor_command_publisher_;
   ros::ServiceServer enable_motors_server_;
+
+#ifdef USE_MAV_MSGS
+  ros::Publisher actuators_command_publisher_;
+  Eigen::Matrix<double, 4, Eigen::Dynamic> allocation_matrix_;
+  Eigen::Matrix<double, Eigen::Dynamic, 4> wrench_to_motor_speed_;
+#endif
 };
 
 } // namespace hector_quadrotor_controller_gazebo

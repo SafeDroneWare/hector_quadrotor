@@ -30,6 +30,8 @@
 
 #include <geometry_msgs/WrenchStamped.h>
 
+#include <Eigen/Geometry>
+
 namespace hector_quadrotor_controller_gazebo
 {
 
@@ -107,6 +109,27 @@ bool QuadrotorHardwareSim::initSim(
 
   wrench_command_publisher_ = model_nh.advertise<geometry_msgs::WrenchStamped>("command/wrench", 1);
   motor_command_publisher_ = model_nh.advertise<geometry_msgs::WrenchStamped>("command/motor", 1);
+#ifdef USE_MAV_MSGS
+  actuators_command_publisher_ = model_nh.advertise<mav_msgs::Actuators>("command/motor_speed", 1);
+
+  // TODO: build actuator_matrix_ from ROS parameters
+  allocation_matrix_.resize(4, 4);
+  const double
+      cos45 = cos(45. * M_PI/180.),
+      sin45 = sin(45. * M_PI/180.),
+      cos135 = cos(135. * M_PI/180.),
+      sin135 = sin(135. * M_PI/180.);
+  const double arm_length = 0.325;
+  const double force_constant = 2.4126e-5;
+  const double moment_constant = 1.6e-2;
+  allocation_matrix_ <<
+      -sin45 * arm_length * force_constant,  sin45 * arm_length * force_constant,  sin135 * arm_length * force_constant, -sin135 * arm_length * force_constant,
+      -cos45 * arm_length * force_constant, -cos45 * arm_length * force_constant, -cos135 * arm_length * force_constant, -cos135 * arm_length * force_constant,
+      -force_constant * moment_constant,     force_constant * moment_constant,    -force_constant * moment_constant,      force_constant * moment_constant,
+       force_constant,                       force_constant,                       force_constant,                        force_constant;
+  wrench_to_motor_speed_ = allocation_matrix_.transpose()
+      * (allocation_matrix_ * allocation_matrix_.transpose()).inverse();
+#endif
 
   return true;
 }
@@ -192,10 +215,12 @@ void QuadrotorHardwareSim::writeSim(ros::Time time, ros::Duration period)
       wrench.wrench = wrench_limiter_(wrench_output_->getCommand());
 
       if (!result_written) {
+#ifndef USE_MAV_MSGS
         gazebo::math::Vector3 force(wrench.wrench.force.x, wrench.wrench.force.y, wrench.wrench.force.z);
         gazebo::math::Vector3 torque(wrench.wrench.torque.x, wrench.wrench.torque.y, wrench.wrench.torque.z);
         link_->AddRelativeForce(force);
         link_->AddRelativeTorque(torque - link_->GetInertial()->GetCoG().Cross(force));
+#endif
       }
 
     } else {
@@ -203,6 +228,23 @@ void QuadrotorHardwareSim::writeSim(ros::Time time, ros::Duration period)
     }
 
     wrench_command_publisher_.publish(wrench);
+
+#ifdef USE_MAV_MSGS
+    {
+      mav_msgs::Actuators motor_speed;
+      Eigen::Vector4d eigen_wrench((Eigen::Vector4d() << wrench.wrench.torque.x, wrench.wrench.torque.y, wrench.wrench.torque.z, wrench.wrench.force.z).finished());
+      motor_speed.angular_velocities.resize(wrench_to_motor_speed_.rows());
+      for(std::size_t motor = 0; motor < wrench_to_motor_speed_.rows(); ++motor)
+      {
+        motor_speed.angular_velocities[motor]
+            = sqrt(std::max<double>(wrench_to_motor_speed_.row(motor) * eigen_wrench, 0.0));
+      }
+//      std::cout << motor_speed << std::endl;
+      actuators_command_publisher_.publish(motor_speed);
+    }
+#endif  // HAVE_MAV_MSGS
+
+    result_written =true;
   }
 }
 
