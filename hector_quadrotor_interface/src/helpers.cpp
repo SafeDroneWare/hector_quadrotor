@@ -35,6 +35,19 @@ namespace hector_quadrotor_interface
 bool getMassAndInertia(const ros::NodeHandle &nh, double &mass, double inertia[3])
 {
 
+  // search for mass and inertia parameters on the parameter server
+  XmlRpc::XmlRpcValue inertia_xml;
+  if (nh.getParam("mass", mass) && nh.getParam("inertia", inertia_xml)) {
+    if (inertia_xml.hasMember("xx") && inertia_xml.hasMember("yy") && inertia_xml.hasMember("zz")) {
+      inertia[0] = inertia_xml["xx"];
+      inertia[1] = inertia_xml["yy"];
+      inertia[2] = inertia_xml["zz"];
+
+      ROS_INFO_STREAM("Loaded mass and inertia from ROS parameter server.");
+      return true;
+    }
+  }
+
   std::string robot_description;
   if (!nh.getParam("robot_description", robot_description))
   {
