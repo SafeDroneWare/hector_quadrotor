@@ -24,6 +24,10 @@
       slow_button: 12
       go_button: 13
       stop_button: 15
+
+      x_velocity_max: 5.0
+      y_velocity_max: 5.0
+      z_velocity_max: 5.0
     </rosparam>
 
   </node>
